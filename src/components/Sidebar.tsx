@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { LayoutDashboard, Radio, Activity, Settings, ChevronRight, Terminal, Github, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, ChevronRight, Terminal, Github, ShieldCheck } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -23,10 +22,8 @@ const NavItem = ({ icon: Icon, label, active, onClick }: { icon: any, label: str
 );
 
 export const Sidebar = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
-
   return (
-    <aside className="w-72 h-screen bg-[#07080a] border-r border-white-[0.05] flex flex-col fixed left-0 top-0 z-50">
+    <aside className="w-64 shrink-0 h-screen sticky top-0 bg-[#07080a] border-r border-white/[0.05] flex flex-col z-50">
       <div className="p-8 flex items-center gap-4 border-b border-white/[0.03]">
         <div className="relative">
           <div className="w-10 h-10 bg-blue-600/20 flex items-center justify-center rounded-lg border border-blue-500/30 group cursor-pointer hover:border-blue-400/50 transition-all">
@@ -50,48 +47,15 @@ export const Sidebar = () => {
         <NavItem 
           icon={LayoutDashboard} 
           label="Operational Desk" 
-          active={activeTab === 'dashboard'} 
-          onClick={() => setActiveTab('dashboard')} 
+          active={true} 
+          onClick={() => {}} 
         />
-        <NavItem 
-          icon={Activity} 
-          label="Pipeline Control" 
-          active={activeTab === 'pipeline'} 
-          onClick={() => setActiveTab('pipeline')} 
-        />
-        <NavItem 
-          icon={Radio} 
-          label="Node Monitor" 
-          active={activeTab === 'monitor'} 
-          onClick={() => setActiveTab('monitor')} 
-        />
-        
         <div className="px-8 mt-12 mb-6">
-          <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Environmental</p>
+          <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em]">Documentation</p>
         </div>
-        <NavItem 
-          icon={Settings} 
-          label="Kernel Prefs" 
-          active={activeTab === 'settings'} 
-          onClick={() => setActiveTab('settings')} 
-        />
       </nav>
 
       <div className="p-6 mt-auto">
-        <div className="bg-gradient-to-br from-blue-500/10 to-transparent p-4 rounded-xl border border-blue-500/10">
-          <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-2">Build Stats</p>
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-[10px]">
-              <span className="text-slate-500 font-mono">Uptime</span>
-              <span className="text-slate-300 font-mono">14d 2h 11m</span>
-            </div>
-            <div className="flex justify-between text-[10px]">
-              <span className="text-slate-500 font-mono">Latency</span>
-              <span className="text-emerald-500 font-mono">12ms</span>
-            </div>
-          </div>
-        </div>
-        
         <a 
           href="https://github.com/Caleb-Gawthroupe/minutes" 
           target="_blank" 

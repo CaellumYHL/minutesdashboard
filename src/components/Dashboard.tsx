@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { Zap, Activity, Users, Send, CheckCircle2, PlayCircle, Terminal, RefreshCcw, Bell } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Activity, Send, CheckCircle2, PlayCircle, Terminal, RefreshCcw, Bell, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const StatCard = ({ label, value, subtext, icon: Icon, trend }: { label: string, value: string, subtext: string, icon: any, trend?: string }) => (
-  <div className="technical-border glass-card p-6 group cursor-default hover:bg-white/[0.02] transition-all">
+  <div className="glass-card p-6 flex flex-col group hover:-translate-y-1 transition-transform duration-300">
     <div className="flex justify-between items-start mb-6">
       <div className="p-3 bg-blue-500/10 group-hover:bg-blue-500/20 rounded-xl transition-all duration-300 group-hover:rotate-6">
         <Icon size={22} className="text-blue-400" />
@@ -25,28 +25,84 @@ const StatCard = ({ label, value, subtext, icon: Icon, trend }: { label: string,
   </div>
 );
 
-export const Dashboard = () => {
+export const Dashboard = ({ token }: { token: string }) => {
   const [isTriggering, setIsTriggering] = useState(false);
-  const [lastPing, setLastPing] = useState<string | null>(null);
+  const [stats, setStats] = useState({
+    totalRuns: 0,
+    latestRunStatus: 'Unknown',
+    lastRunTime: 'Never',
+    isLoading: true
+  });
+  const [commits, setCommits] = useState<any[]>([]);
+  const [isCommitsLoading, setIsCommitsLoading] = useState(true);
+
+  const REPO_OWNER = import.meta.env.VITE_REPO_OWNER || "Caleb-Gawthroupe";
+  const REPO_NAME = import.meta.env.VITE_REPO_NAME || "minutes";
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?per_page=1`, {
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': `token ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.workflow_runs && data.workflow_runs.length > 0) {
+            const latestRun = data.workflow_runs[0];
+            const date = new Date(latestRun.updated_at);
+            
+            setStats({
+              totalRuns: data.total_count,
+              latestRunStatus: latestRun.conclusion || latestRun.status,
+              lastRunTime: date.toLocaleString(),
+              isLoading: false
+            });
+          } else {
+             setStats((prev: any) => ({ ...prev, isLoading: false }));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch GitHub stats", e);
+        setStats((prev: any) => ({ ...prev, isLoading: false, latestRunStatus: 'Error' }));
+      }
+
+      try {
+        const commitResponse = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?per_page=7`, {
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': `token ${token}`
+          }
+        });
+        if (commitResponse.ok) {
+           const commitData = await commitResponse.json();
+           setCommits(commitData);
+        }
+      } catch (e) {
+        console.error("Failed to fetch Github commits", e);
+      } finally {
+        setIsCommitsLoading(false);
+      }
+    };
+    fetchStats();
+    
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    return () => clearInterval(interval);
+  }, [token, REPO_OWNER, REPO_NAME]);
 
   const handlePing = async () => {
     setIsTriggering(true);
-    const GITHUB_TOKEN = import.meta.env.VITE_GITHUB_TOKEN;
-    const REPO_OWNER = import.meta.env.VITE_REPO_OWNER || "Caleb-Gawthroupe";
-    const REPO_NAME = import.meta.env.VITE_REPO_NAME || "minutes";
-
-    if (!GITHUB_TOKEN) {
-      alert("ERR_CONFIG_MISSING: VITE_GITHUB_TOKEN not found in environment.");
-      setIsTriggering(false);
-      return;
-    }
 
     try {
       const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/dispatches`, {
         method: 'POST',
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Authorization': `token ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -55,7 +111,7 @@ export const Dashboard = () => {
       });
 
       if (response.ok) {
-        setLastPing(new Date().toLocaleTimeString());
+        // We don't need setLastPing anymore since we rely on the API data
       } else {
         const error = await response.json();
         alert(`ERR_DISPATCH_FAILED: ${error.message || 'UNKNOWN_ERROR'}`);
@@ -71,20 +127,13 @@ export const Dashboard = () => {
     <div className="max-w-[1400px] mx-auto grid-bg min-h-full py-4">
       <header className="mb-12 flex justify-between items-start">
         <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 text-[10px] font-bold text-blue-400 rounded uppercase tracking-widest font-mono">
-              Live Environment
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
-              <span className="text-[10px] text-emerald-500 font-bold uppercase font-mono">Syncing</span>
-            </div>
+          <div className="flex items-center gap-3 bg-white/[0.03] px-3 py-1.5 rounded-full border border-white/[0.05]">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+            <span className="text-[11px] text-slate-300 font-medium">System Online</span>
           </div>
-          <h2 className="text-5xl font-black text-white tracking-tighter italic">STRATEGIC COMMAND</h2>
-          <p className="text-slate-400 font-mono text-sm flex items-center gap-2">
-            <span className="text-blue-500 opacity-50 font-bold">//</span> SYSTEM_RUNTIME: <span className="text-white font-bold">ACTIVE</span>
-            <span className="w-1 h-3 bg-blue-500/30 mx-1" />
-            VOD_STATUS: <span className="text-emerald-500 font-bold">STABLE</span>
+          <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight">Dashboard Overview</h2>
+          <p className="text-slate-400 text-sm">
+            Monitor civic data pipelines and trigger manual social media broadcasts.
           </p>
         </div>
         
@@ -115,137 +164,84 @@ export const Dashboard = () => {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
         <StatCard 
-          label="Civic Reach" 
-          value="12,482" 
-          subtext="Tracking 12% WoW" 
-          icon={Users} 
-          trend="+12%" 
-        />
-        <StatCard 
-          label="Pulse Rate" 
-          value="8.2%" 
-          subtext="Avg. User Interest" 
+          label="Total Pipline Runs" 
+          value={stats.isLoading ? "..." : stats.totalRuns.toString()} 
+          subtext="Historically executed workflows" 
           icon={Activity} 
         />
         <StatCard 
-          label="Kernel Health" 
-          value="99.99%" 
-          subtext="No recent outages" 
+          label="Latest Conclusion" 
+          value={stats.isLoading ? "..." : stats.latestRunStatus === 'success' ? 'Stable' : stats.latestRunStatus} 
+          subtext={stats.latestRunStatus === 'success' ? "All tests passed" : "Review logs required"} 
           icon={CheckCircle2} 
+          trend={stats.latestRunStatus === 'success' ? "PASS" : undefined}
         />
         <StatCard 
-          label="Last Broadcast" 
-          value={lastPing || "09:00:00"} 
-          subtext="Standard cron run" 
+          label="Last Execution" 
+          value={stats.isLoading ? "..." : stats.lastRunTime} 
+          subtext="Most recent workflow activity" 
           icon={Send} 
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <div className="technical-border bg-gradient-to-b from-[#16191f] to-[#0f1115] p-8 rounded-xl shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5">
-              <Terminal size={120} />
+          <div className="glass-card p-8 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+              <Terminal size={180} />
             </div>
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xs font-black font-mono text-blue-400 uppercase tracking-[0.2em] flex items-center gap-3">
-                <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />
-                Kernel Execution Logs
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <Terminal size={16} className="text-slate-400" />
+                Recent Repository Activity
               </h3>
               <div className="flex gap-1.5">
-                {[1,2,3].map(i => <div key={i} className="w-2 h-2 rounded-full bg-white/5 border border-white/10" />)}
+                {[1,2,3].map(i => <div key={i} className="w-2.5 h-2.5 rounded-full bg-white/10" />)}
               </div>
             </div>
-            <div className="bg-black/40 p-6 font-mono text-[11px] leading-relaxed text-slate-400 space-y-3 max-h-[400px] overflow-y-auto border border-white/[0.03] rounded-lg custom-scrollbar backdrop-blur-sm">
+            <div className="bg-[#0A0A0A] p-5 font-mono text-xs leading-relaxed text-slate-400 space-y-2.5 max-h-[400px] overflow-y-auto rounded-xl border border-white/[0.05]">
               <AnimatePresence mode="popLayout">
-                <motion.p initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} className="flex gap-4">
-                  <span className="text-white/20">01</span>
-                  <span className="text-blue-500 font-bold">[SYS]</span>
-                  <span>Kernel initialized. Spooling drivers...</span>
-                </motion.p>
-                <motion.p initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }} className="flex gap-4">
-                   <span className="text-white/20">02</span>
-                  <span className="text-emerald-500 font-bold">[NET]</span>
-                  <span>Gateway handshake successful: <span className="text-slate-300 underline underline-offset-4 decoration-emerald-500/30 cursor-pointer">tmmis.api.gov</span></span>
-                </motion.p>
-                <motion.p initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }} className="flex gap-4">
-                   <span className="text-white/20">03</span>
-                  <span className="text-slate-500 font-bold">[CMD]</span>
-                  <span>Scanning Registry: <span className="text-blue-400/80">Bylaw_2024_Fetch</span></span>
-                </motion.p>
-                <motion.p initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="flex gap-4">
-                   <span className="text-white/20">04</span>
-                  <span className="text-emerald-500 font-bold">[DB]</span>
-                  <span>ChromaDB Ingestion: <span className="text-white font-bold">+14</span> vector chunks indexed.</span>
-                </motion.p>
-                <motion.p initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="flex gap-4">
-                   <span className="text-white/20">05</span>
-                  <span className="text-blue-500 font-bold">[AI]</span>
-                  <span>Agent <span className="italic text-slate-300">'Hunter-Alpha'</span> auditing file #PH11.4...</span>
-                </motion.p>
-                <motion.p initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }} className="flex gap-4">
-                   <span className="text-white/20">06</span>
-                  <span className="text-amber-500 font-bold">[GEN]</span>
-                  <span>Graphic buffer flushed: 3/3 slides ready in <span className="text-white font-bold">/visuals/</span></span>
-                </motion.p>
-                <motion.p initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.6 }} className="flex gap-4">
-                   <span className="text-white/20">07</span>
-                  <span className="text-emerald-500 font-bold">[SUCCESS]</span>
-                  <span className="tracking-tight italic font-bold">Instagram broadcast completed. Connection closed.</span>
-                </motion.p>
+                {isCommitsLoading ? (
+                  <p className="animate-pulse">Fetching latest repository transactions...</p>
+                ) : commits.length > 0 ? (
+                  commits.map((commit, index) => (
+                    <motion.p key={commit.sha} initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }} className="flex flex-col sm:flex-row gap-2 sm:gap-4 border-b border-white/[0.02] pb-2 last:border-0">
+                      <span className="text-blue-500 font-bold shrink-0">[{commit.sha.substring(0, 7)}]</span>
+                      <span className="text-slate-300 truncate" title={commit.commit.message}>{commit.commit.message.split('\n')[0]}</span>
+                      <span className="text-slate-500 sm:ml-auto shrink-0 w-24 text-right">{new Date(commit.commit.author.date).toLocaleDateString()}</span>
+                    </motion.p>
+                  ))
+                ) : (
+                  <p className="text-amber-500/80">No recent activity found or access denied.</p>
+                )}
               </AnimatePresence>
-            </div>
-            <div className="mt-6 flex justify-between items-center text-[10px] font-mono text-slate-600 px-2">
-              <span>ACTIVE_THREAD: 0x8BE92</span>
-              <span>MEMORY_ALLOC: 124MB</span>
             </div>
           </div>
         </div>
 
-        <div className="space-y-8">
-          <div className="technical-border bg-gradient-to-br from-[#16191f] to-[#0f1115] p-8 rounded-xl shadow-xl">
-            <h3 className="text-xs font-black font-mono text-white mb-8 uppercase tracking-[0.2em]">Service Infrastructure</h3>
-            <div className="space-y-6">
+        <div className="space-y-6">
+          <div className="glass-card p-8">
+            <h3 className="text-sm font-semibold text-white mb-6">Service Health</h3>
+            <div className="space-y-5">
               {[
-                { name: 'IG Graph API', status: 'Optimal', color: 'text-emerald-400' },
-                { name: 'OpenRouter L3', status: 'Active', color: 'text-emerald-400' },
-                { name: 'GitHub Actions', status: 'Stable', color: 'text-emerald-400' },
-                { name: 'ImgBB Cloud', status: 'Warning', color: 'text-amber-400' },
-                { name: 'Vapi Voice', status: 'Legacy', color: 'text-slate-500' },
+                { name: 'GitHub Actions Pipeline', status: stats.latestRunStatus === 'success' ? 'Operational' : 'Review Required', color: stats.latestRunStatus === 'success' ? 'text-slate-300' : 'text-amber-400' },
               ].map((svc) => (
-                <div key={svc.name} className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400 font-mono tracking-tight">{svc.name}</span>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-black uppercase tracking-tighter ${svc.color}`}>{svc.status}</span>
-                    <div className={`w-1 h-1 rounded-full ${svc.color.replace('text', 'bg')}`} />
+                <div key={svc.name} className="flex items-center justify-between group cursor-default">
+                  <span className="text-sm text-slate-400 group-hover:text-slate-300 transition-colors">{svc.name}</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${svc.color.replace('text', 'bg')} ${svc.status === 'Operational' ? 'bg-emerald-500' : ''}`} />
+                    <span className={`text-xs font-medium ${svc.status === 'Operational' ? 'text-emerald-500' : svc.color}`}>{svc.status}</span>
                   </div>
                 </div>
               ))}
             </div>
-            <button className="w-full mt-10 py-3 border border-white/[0.05] hover:border-white/10 rounded-lg text-[10px] font-black font-mono text-slate-500 uppercase tracking-widest transition-all hover:bg-white/[0.02]">
-              Re-Diagnostics
+            <button className="w-full mt-8 py-2.5 border border-white/10 hover:border-white/20 rounded-lg text-xs font-medium text-slate-300 transition-colors hover:bg-white/[0.02]">
+              Run Full Diagnostics
             </button>
           </div>
 
-          <div className="technical-border bg-blue-600/5 p-8 border-blue-500/20 rounded-xl relative overflow-hidden group">
-            <div className="absolute -right-4 -bottom-4 text-blue-500/5 rotate-12 transition-transform group-hover:rotate-0 duration-700">
-               <Zap size={100} />
-            </div>
-            <h3 className="text-xs font-black font-mono text-blue-400 mb-4 uppercase tracking-[0.2em] flex items-center gap-2">
-               Intelligence Brief
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed font-medium">
-              Core logic updated. <span className="text-white font-bold">Robo-Lobbyist</span> integration is now handling direct feedback loops for Ward 10 inquiries. Artificial latency reduced by 40%.
-            </p>
-            <div className="mt-6 flex gap-2">
-               <div className="w-1/3 h-1 bg-blue-500/20 rounded-full overflow-hidden">
-                  <div className="w-2/3 h-full bg-blue-500" />
-               </div>
-               <div className="w-2/3 h-1 bg-white/5 rounded-full" />
-            </div>
-          </div>
         </div>
       </div>
     </div>
